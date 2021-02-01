@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -756,41 +756,6 @@ avs_error_t _avs_net_create_tcp_socket(avs_net_socket_t **socket,
 avs_error_t _avs_net_create_udp_socket(avs_net_socket_t **socket,
                                        const void *socket_configuration) {
     return create_net_socket(socket, AVS_NET_UDP_SOCKET, socket_configuration);
-}
-
-avs_error_t avs_net_local_address_for_target_host(const char *target_host,
-                                                  avs_net_af_t addr_family,
-                                                  char *address_buffer,
-                                                  size_t buffer_size) {
-    (void) target_host; // we don't support more than one interface
-    const char *ip_address = AvsSocketGlobal::get_interface().get_ip_address();
-    if (!ip_address) {
-        return avs_errno(AVS_EADDRNOTAVAIL);
-    }
-    if (addr_family != AVS_NET_AF_UNSPEC) {
-        avs_net_af_t ip_family =
-                (strchr(ip_address, ':') ? AVS_NET_AF_INET6 : AVS_NET_AF_INET4);
-        if (addr_family != ip_family) {
-            return avs_errno(AVS_EADDRNOTAVAIL);
-        }
-    }
-    if (avs_simple_snprintf(address_buffer, buffer_size, "%s", ip_address)
-            < 0) {
-        return avs_errno(AVS_ERANGE);
-    }
-    return AVS_OK;
-}
-
-int avs_net_validate_ip_address(avs_net_af_t family, const char *ip_address) {
-    SocketAddress addr;
-    if (!addr.set_ip_address(ip_address)) {
-        return -1;
-    }
-    return ((family == AVS_NET_AF_INET4 && addr.get_ip_version() != NSAPI_IPv4)
-            || (family == AVS_NET_AF_INET6
-                && addr.get_ip_version() != NSAPI_IPv6))
-                   ? -1
-                   : 0;
 }
 
 avs_error_t

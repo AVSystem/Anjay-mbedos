@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2020 AVSystem <avsystem@avsystem.com>
+ * Copyright 2017-2021 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@
  * - All components required by avs_coap, see <c>avs_coap_config.h</c>
  * - @c avs_algorithm
  * - @c avs_stream
+ * - @c avs_url
  * - @c avs_persistence is highly recommended
  * - @c avs_http (if @c ANJAY_WITH_HTTP_DOWNLOAD is enabled)
  * - @c avs_rbtree (if @c ANJAY_WITH_OBSERVE or
@@ -238,6 +239,33 @@
 #define ANJAY_WITH_LWM2M_JSON
 
 /**
+ * Disable support for TLV format as specified in LwM2M TS 1.0.
+ *
+ * NOTE: LwM2M Client using LwM2M 1.0 MUST support this format. It may be
+ * disabled if LwM2M 1.1 is used and SenML JSON or SenML CBOR is enabled.
+ */
+/* #undef ANJAY_WITHOUT_TLV */
+
+/**
+ * Disable support for Plain Text format as specified in LwM2M TS 1.0 and 1.1.
+ *
+ * NOTE: LwM2M Client SHOULD support this format. It may be disabled to reduce
+ * library size if LwM2M Server is configured to not use it in requests.
+ */
+/* #undef ANJAY_WITHOUT_PLAINTEXT */
+
+/**
+ * Disable use of the Deregister message.
+ */
+/* #undef ANJAY_WITHOUT_DEREGISTER */
+
+/**
+ * Disable support for "IP stickiness", i.e. preference of the same IP address
+ * when reconnecting to a server using a domain name.
+ */
+/* #undef ANJAY_WITHOUT_IP_STICKINESS */
+
+/**
  * Enable support for SenML JSON format, as specified in LwM2M TS 1.1.
  *
  * NOTE: As opposed to <c>ANJAY_WITH_LWM2M_JSON</c>, both generating and parsing
@@ -261,6 +289,17 @@
 /* #undef ANJAY_WITH_CBOR */
 
 /**
+ * Enable support for Enrollment over Secure Transport.
+ *
+ * Requires <c>ANJAY_WITH_LWM2M11</c> and <c>ANJAY_WITH_BOOTSTRAP</c>  to be
+ * enabled.
+ *
+ * IMPORTANT: Only available in the commercial version. Ignored in the open
+ * source version.
+ */
+/* #undef ANJAY_WITH_EST */
+
+/**
  * Enable support for custom "con" attribute that controls Confirmable
  * notifications.
  *
@@ -279,18 +318,6 @@
  * Minimal suggested setting for low-resource builds is 256.
  */
 #define ANJAY_MAX_PK_OR_IDENTITY_SIZE 2048
-
-/**
- * Maximum size in bytes supported for the "Server Public Key" resource in the
- * LwM2M Security object.
- *
- * If editing this file manually, <c>2048</c> shall
- * be replaced with a positive integer literal.
- *
- * The default value defined in CMake build scripts is 2048.
- * Minimal suggested setting for low-resource builds is 256.
- */
-#define ANJAY_MAX_SERVER_PK_OR_IDENTITY_SIZE 2048
 
 /**
  * Maximum size in bytes supported for the "Secret Key" resource in the LwM2M
