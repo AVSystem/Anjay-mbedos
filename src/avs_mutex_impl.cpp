@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,7 @@
 #include <avsystem/commons/avs_defs.h>
 #include <avsystem/commons/avs_memory.h>
 
-extern "C" {
-#include <avsystem/commons/avs_mutex.h>
-} // extern "C"
-
-#include "mbed.h"
-
-struct avs_mutex {
-    rtos::Mutex mbed_mtx;
-};
+#include "avs_mbed_threading_structs.h"
 
 int avs_mutex_create(avs_mutex_t **out_mutex) {
     AVS_ASSERT(!*out_mutex, "possible attempt to reinitialize a mutex");

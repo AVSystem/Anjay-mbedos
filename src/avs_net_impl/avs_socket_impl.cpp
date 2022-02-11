@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@
 
 #include "avs_mbed_hacks.h"
 #include "avs_socket_impl.h"
+
+#include "anjay_mbedos_posix_compat.h"
 
 using namespace avs_mbed_hacks;
 using namespace avs_mbed_impl;
@@ -192,8 +194,8 @@ avs_error_t accept_net(avs_net_socket_t *server_net_socket,
                        avs_net_socket_t *new_net_socket) {
     AvsSocket *new_avs_socket = NULL;
     if (new_net_socket
-            && reinterpret_cast<avs_net_socket_t *>(new_net_socket)->operations
-                           == &NET_VTABLE) {
+        && reinterpret_cast<avs_net_socket_t *>(new_net_socket)->operations
+                   == &NET_VTABLE) {
         new_avs_socket = get_impl(new_net_socket);
     }
     return get_impl(server_net_socket)->accept(new_avs_socket);
@@ -273,8 +275,7 @@ struct PollSocketEntry {
 static int poll_nonblocking(avs::List<avs_net_socket_t *> &out,
                             avs::List<PollSocketEntry> &entries) {
     for (avs::ListIterator<PollSocketEntry> it = entries.begin();
-         it != entries.end();
-         ++it) {
+         it != entries.end(); ++it) {
         avs::ListIterator<avs_net_socket_t *> avs_it = it->avs_sockets.begin();
         while (avs_it != it->avs_sockets.end()) {
             if (reinterpret_cast<const AvsSocket *>(
@@ -346,8 +347,7 @@ int AvsSocketGlobal::poll(
 
     for (avs::ListIterator<avs_net_socket_t *const> avs_it =
                  avs_sockets.begin();
-         avs_it != avs_sockets.end();
-         ++avs_it) {
+         avs_it != avs_sockets.end(); ++avs_it) {
         Socket *mbed_socket = reinterpret_cast<const AvsSocket *>(
                                       avs_net_socket_get_system(*avs_it))
                                       ->mbed_socket();
@@ -505,7 +505,7 @@ void wait_on_poll_flag(const avs_time_monotonic_t &deadline) {
             avs_time_monotonic_diff(deadline, avs_time_monotonic_now());
     int64_t timeout_ms;
     if (!avs_time_duration_to_scalar(&timeout_ms, AVS_TIME_MS, timeout)
-            && timeout_ms > 0) {
+        && timeout_ms > 0) {
         wait_on_poll_flag((uint32_t) min(timeout_ms, (int64_t) UINT32_MAX));
     }
 }
@@ -658,7 +658,7 @@ avs_error_t AvsSocket::bind(const char *localaddr, const char *port_str) {
 
 avs_error_t AvsSocket::connect(const char *host, const char *port) {
     if (state_ != AVS_NET_SOCKET_STATE_CLOSED
-            && state_ != AVS_NET_SOCKET_STATE_BOUND) {
+        && state_ != AVS_NET_SOCKET_STATE_BOUND) {
         LOG(ERROR, "socket is already connected");
         return avs_errno(AVS_EISCONN);
     }
@@ -773,8 +773,8 @@ avs_net_resolved_endpoint_get_host_port(const avs_net_resolved_endpoint_t *endp,
         return avs_errno(AVS_EINVAL);
     }
     if (avs_simple_snprintf(host, hostlen, "%s", addr.get_ip_address()) < 0
-            || avs_simple_snprintf(serv, servlen, "%" PRIu16, addr.get_port())
-                           < 0) {
+        || avs_simple_snprintf(serv, servlen, "%" PRIu16, addr.get_port())
+                   < 0) {
         return avs_errno(AVS_ERANGE);
     }
     return AVS_OK;
@@ -785,4 +785,33 @@ int _avs_net_initialize_global_compat_state(void) {
 }
 
 void _avs_net_cleanup_global_compat_state(void) {}
+
+static int c_poll_nonblocking(struct avs_mbedos_pollfd *fds, size_t nfds) {
+    int result = 0;
+    for (size_t i = 0; i < nfds; ++i) {
+        if ((fds[i].events & AVS_MBEDOS_POLLIN)
+            && reinterpret_cast<const AvsSocket *>(
+                       avs_net_socket_get_system(fds[i].fd))
+                       ->ready_to_receive()) {
+            fds[i].revents |= AVS_MBEDOS_POLLIN;
+            ++result;
+        }
+    }
+    return result;
 }
+
+int _anjay_mbedos_poll(struct avs_mbedos_pollfd *fds,
+                       size_t nfds,
+                       int timeout_ms) {
+    reset_poll_flag();
+    // any of the sockets might actually have data already buffered
+    int result = c_poll_nonblocking(fds, nfds);
+    if (result == 0) {
+        // if not, then wait for some event
+        wait_on_poll_flag(timeout_ms >= 0 ? timeout_ms : UINT32_MAX);
+        result = c_poll_nonblocking(fds, nfds);
+    }
+    return result;
+}
+
+} // extern "C"
