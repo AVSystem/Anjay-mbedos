@@ -122,7 +122,7 @@ public:
         MBED_ASSERT(out_buffer || !out_buffer_size);
         if (avs_simple_snprintf(out_buffer, out_buffer_size, "%s",
                                 remote_address_.get_ip_address())
-                < 0) {
+            < 0) {
             return avs_errno(AVS_ERANGE);
         }
         return AVS_OK;
@@ -132,7 +132,7 @@ public:
         MBED_ASSERT(out_buffer || !out_buffer_size);
         if (avs_simple_snprintf(out_buffer, out_buffer_size, "%s",
                                 remote_hostname_)
-                < 0) {
+            < 0) {
             return avs_errno(AVS_ERANGE);
         }
         return AVS_OK;
@@ -144,7 +144,7 @@ public:
         MBED_ASSERT(out_buffer || !out_buffer_size);
         if (avs_simple_snprintf(out_buffer, out_buffer_size, "%" PRIu16,
                                 remote_address_.get_port())
-                < 0) {
+            < 0) {
             return avs_errno(AVS_ERANGE);
         }
         return AVS_OK;
@@ -157,7 +157,7 @@ public:
         MBED_ASSERT(out_buffer || !out_buffer_size);
         if (avs_simple_snprintf(out_buffer, out_buffer_size, "%s",
                                 local_address_.get_ip_address())
-                < 0) {
+            < 0) {
             return avs_errno(AVS_ERANGE);
         }
         return AVS_OK;
@@ -170,7 +170,7 @@ public:
         MBED_ASSERT(out_buffer || !out_buffer_size);
         if (avs_simple_snprintf(out_buffer, out_buffer_size, "%" PRIu16,
                                 local_address_.get_port())
-                < 0) {
+            < 0) {
             return avs_errno(AVS_ERANGE);
         }
         return AVS_OK;
@@ -209,14 +209,19 @@ public:
 
 class AvsTcpSocket : public AvsSocket {
     std::auto_ptr<InternetSocket> socket_; // TCPSocket or TCPServer
+    uint8_t buffered_byte_;
+    bool has_buffered_byte_;
 
     avs_error_t configure_socket();
+    nsapi_size_or_error_t recv_with_buffer_hack(void *data, nsapi_size_t size);
 
 protected:
     virtual avs_error_t try_connect(const SocketAddress &address);
     virtual avs_error_t try_bind(const SocketAddress &localaddr);
 
 public:
+    AvsTcpSocket() : socket_(), buffered_byte_(), has_buffered_byte_(false) {}
+
     virtual bool ready_to_receive() const;
 
     virtual InternetSocket *mbed_socket() const {

@@ -33,10 +33,60 @@ namespace avs_mbed_impl {
 avs_error_t AvsTcpSocket::configure_socket() {
     // configuration not really supported...
     if (configuration_.interface_name[0] || configuration_.priority
-            || configuration_.dscp || configuration_.transparent) {
+        || configuration_.dscp || configuration_.transparent) {
         return avs_errno(AVS_EINVAL);
     }
     return AVS_OK;
+}
+
+/**
+ * This function is intended to be a drop-in replacement for TCPSocket::recv(),
+ * but make sure that recv(NULL, 0) always returns success if there is data
+ * available for reading.
+ *
+ * We call recv() like that in our implementation of poll() - this is necessary,
+ * because there is no native poll() in Mbed OS, and the closest mechanism there
+ * is, InternetSocket::sigio(), is somewhat unreliable, as there is no
+ * information on *what* event happened - the callback may be called both when
+ * there is data available, or when the socket is closed, and perhaps even when
+ * data can be written.
+ *
+ * That's why we make sure that TCPSocket::recv() is always called with buffer
+ * bigger than 0. We can then buffer that initial part of data, and return
+ * success from recv(NULL, 0) properly, until the buffer is actually consumed.
+ */
+nsapi_size_or_error_t AvsTcpSocket::recv_with_buffer_hack(void *data,
+                                                          nsapi_size_t size) {
+    MBED_ASSERT(socket_.get());
+    TCPSocket *tcp_socket = static_cast<TCPSocket *>(socket_.get());
+    uint8_t *u8data = reinterpret_cast<uint8_t *>(data);
+    if (size > 0) {
+        if (has_buffered_byte_) {
+            *u8data++ = buffered_byte_;
+            --size;
+            if (size == 0) {
+                has_buffered_byte_ = false;
+                return 1;
+            }
+        }
+        nsapi_size_or_error_t result = tcp_socket->recv(u8data, size);
+        if (has_buffered_byte_ && result >= 0) {
+            has_buffered_byte_ = false;
+            ++result;
+        }
+        return result;
+    } else {
+        if (has_buffered_byte_) {
+            return 0;
+        } else {
+            nsapi_size_or_error_t result = tcp_socket->recv(&buffered_byte_, 1);
+            if (result > 0) {
+                has_buffered_byte_ = true;
+                result = 0;
+            }
+            return result;
+        }
+    }
 }
 
 avs_error_t AvsTcpSocket::try_connect(const SocketAddress &address) {
@@ -87,11 +137,14 @@ avs_error_t AvsTcpSocket::connect(const char *host, const char *port) {
 
 bool AvsTcpSocket::ready_to_receive() const {
     if (state_ == AVS_NET_SOCKET_STATE_ACCEPTED
-            || state_ == AVS_NET_SOCKET_STATE_CONNECTED) {
+        || state_ == AVS_NET_SOCKET_STATE_CONNECTED) {
         MBED_ASSERT(socket_.get());
         socket_->set_blocking(false);
-        return static_cast<TCPSocket *>(socket_.get())->recv(NULL, 0)
-               == NSAPI_ERROR_OK;
+        nsapi_size_or_error_t result =
+                const_cast<AvsTcpSocket *>(this)->recv_with_buffer_hack(NULL,
+                                                                        0);
+        LOG(DEBUG, "result == %d", (int) result);
+        return result == NSAPI_ERROR_OK;
     }
     // TODO: support TCPServer
     return false;
@@ -99,7 +152,7 @@ bool AvsTcpSocket::ready_to_receive() const {
 
 avs_error_t AvsTcpSocket::send(const void *buffer, size_t buffer_length) {
     if (state_ != AVS_NET_SOCKET_STATE_ACCEPTED
-            && state_ != AVS_NET_SOCKET_STATE_CONNECTED) {
+        && state_ != AVS_NET_SOCKET_STATE_CONNECTED) {
         LOG(ERROR, "attempted send() on a socket not created");
         return avs_errno(AVS_EBADF);
     }
@@ -130,7 +183,7 @@ avs_error_t AvsTcpSocket::receive_from(size_t *out_size,
                                        char *port_str,
                                        size_t port_str_size) {
     if (state_ != AVS_NET_SOCKET_STATE_ACCEPTED
-            && state_ != AVS_NET_SOCKET_STATE_CONNECTED) {
+        && state_ != AVS_NET_SOCKET_STATE_CONNECTED) {
         LOG(ERROR, "attempted receive_from() on a socket not created");
         return avs_errno(AVS_EBADF);
     }
@@ -149,14 +202,14 @@ avs_error_t AvsTcpSocket::receive_from(size_t *out_size,
     }
     avs_time_monotonic_t deadline =
             avs_time_monotonic_add(avs_time_monotonic_now(), recv_timeout_);
-    TCPSocket *tcp_socket = static_cast<TCPSocket *>(socket_.get());
-    tcp_socket->set_blocking(!avs_time_monotonic_valid(deadline));
+    static_cast<TCPSocket *>(socket_.get())
+            ->set_blocking(!avs_time_monotonic_valid(deadline));
     reset_poll_flag();
-    nsapi_size_or_error_t result = tcp_socket->recv(buffer, buffer_length);
+    nsapi_size_or_error_t result = recv_with_buffer_hack(buffer, buffer_length);
     while (result == NSAPI_ERROR_WOULD_BLOCK
            && avs_time_monotonic_before(avs_time_monotonic_now(), deadline)) {
         wait_on_poll_flag(deadline);
-        result = tcp_socket->recv(buffer, buffer_length);
+        result = recv_with_buffer_hack(buffer, buffer_length);
         reset_poll_flag();
     }
     if (result < 0) {
