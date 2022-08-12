@@ -24,6 +24,8 @@ extern "C" {
 
 #include "mbed.h"
 
+#include "avs_mbed_hacks.h"
+
 struct avs_mutex {
     rtos::Mutex mbed_mtx;
 };
@@ -37,13 +39,13 @@ struct avs_condvar {
         rtos::Semaphore sem;
         Waiter *next;
 
-        Waiter() : sem(0), next(NULL) {}
+        Waiter() : sem(0), next(nullptr) {}
     };
 
     rtos::Mutex waiters_mtx;
     Waiter *first_waiter;
 
-    avs_condvar() : waiters_mtx(), first_waiter(NULL) {}
+    avs_condvar() : waiters_mtx(), first_waiter(nullptr) {}
 };
 
 #endif /* AVS_MBED_THREADING_STRUCT_H */

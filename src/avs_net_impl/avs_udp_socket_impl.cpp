@@ -64,7 +64,7 @@ class AvsUdpRouter {
                 return *it;
             }
         }
-        return NULL;
+        return nullptr;
     }
 
     AvsUdpSocket *find_unconnected_socket() {
@@ -205,7 +205,7 @@ class AvsUdpRouterHandle {
     AvsUdpRouterHandle &operator=(const AvsUdpRouterHandle &);
 
 public:
-    AvsUdpRouterHandle() : local_address_(), router_(NULL) {}
+    AvsUdpRouterHandle() : local_address_(), router_(nullptr) {}
 
     ~AvsUdpRouterHandle() {
         clear();
@@ -236,10 +236,9 @@ public:
 
             avs::ListIterator<AvsUdpRouterHandle> it;
             for (it = AvsUdpRouter::ROUTERS.begin();
-                 it != AvsUdpRouter::ROUTERS.end();
-                 ++it) {
+                 it != AvsUdpRouter::ROUTERS.end(); ++it) {
                 if (it->router_ == router_) {
-                    it->router_ = NULL;
+                    it->router_ = nullptr;
                     AvsUdpRouter::ROUTERS.erase(it);
                     break;
                 }
@@ -247,7 +246,7 @@ public:
             delete router_;
         }
         local_address_ = SocketAddress();
-        router_ = NULL;
+        router_ = nullptr;
     }
 
     SocketAddress local_address() const {
@@ -288,8 +287,7 @@ void AvsUdpRouter::get(AvsUdpRouterHandle &out, const AvsUdpSocket *socket) {
     for (it = ROUTERS.begin(); it != ROUTERS.end(); ++it) {
         avs::ListIterator<AvsUdpSocket *> sit;
         for (sit = it->router_->sockets_.begin();
-             sit != it->router_->sockets_.end();
-             ++sit) {
+             sit != it->router_->sockets_.end(); ++sit) {
             if (*sit == socket) {
                 out.update(it->local_address(), &**it);
                 return;
@@ -309,7 +307,7 @@ avs_error_t AvsUdpRouter::get_or_create(AvsUdpRouterHandle &out,
         }
     }
 
-    auto_ptr<AvsUdpRouter> router(new (nothrow) AvsUdpRouter(local_addr));
+    AvsUniquePtr<AvsUdpRouter> router(new (nothrow) AvsUdpRouter(local_addr));
     if (!router.get() || !router->recv_buffer_) {
         return AVS_OK;
     }
@@ -357,7 +355,7 @@ void AvsUdpSocket::get_router(AvsUdpRouterHandle &out) const {
 avs_error_t AvsUdpSocket::ensure_router(AvsUdpRouterHandle &out) {
     get_router(out);
     if (!out) {
-        avs_error_t err = AvsSocket::bind(NULL, NULL);
+        avs_error_t err = AvsSocket::bind(nullptr, nullptr);
         if (avs_is_err(err)) {
             return err;
         }
@@ -384,19 +382,19 @@ int AvsUdpSocket::get_fallback_inner_mtu() const {
     static const uint8_t V4MAPPED_ADDR_HEADER[] = { 0, 0, 0, 0, 0,    0,
                                                     0, 0, 0, 0, 0xFF, 0xFF };
     if (remote_address_.get_ip_version() == NSAPI_IPv6
-            && memcmp(remote_address_.get_ip_bytes(), V4MAPPED_ADDR_HEADER,
-                      sizeof(V4MAPPED_ADDR_HEADER))
-                           != 0) { // IPv6
-        return 1232;               // 1280 - 48
-    } else {                       // probably IPv4
-        return 548;                // 576 - 28
+        && memcmp(remote_address_.get_ip_bytes(), V4MAPPED_ADDR_HEADER,
+                  sizeof(V4MAPPED_ADDR_HEADER))
+                   != 0) { // IPv6
+        return 1232;       // 1280 - 48
+    } else {               // probably IPv4
+        return 548;        // 576 - 28
     }
 }
 
 InternetSocket *AvsUdpSocket::mbed_socket() const {
     AvsUdpRouterHandle router;
     get_router(router);
-    return router ? router->get_socket() : NULL;
+    return router ? router->get_socket() : nullptr;
 }
 
 avs_error_t AvsUdpSocket::try_connect(const SocketAddress &address) {
@@ -453,10 +451,11 @@ avs_error_t AvsUdpSocket::send_to(const void *buffer,
         return err;
     }
     SocketAddress address;
-    auto_ptr<avs_net_addrinfo_t> info =
-            resolve_addrinfo(host, port, false, PREFERRED_FAMILY_ONLY);
+    AvsUniquePtr<avs_net_addrinfo_t> info(
+            resolve_addrinfo(host, port, false, PREFERRED_FAMILY_ONLY).move());
     if (!info.get()) {
-        info = resolve_addrinfo(host, port, false, PREFERRED_FAMILY_BLOCKED);
+        info = resolve_addrinfo(host, port, false, PREFERRED_FAMILY_BLOCKED)
+                       .move();
     }
     if (!info.get() || next_socket_address(info.get(), &address)) {
         return avs_errno(AVS_EADDRNOTAVAIL);
@@ -492,17 +491,16 @@ avs_error_t AvsUdpSocket::receive_from(size_t *out_size,
     }
     memcpy(buffer, it->data, *out_size);
     if (host_size
-            && avs_simple_snprintf(host, host_size, "%s",
-                                   it->peer.get_ip_address())
-                           < 0
-            && avs_is_ok(err)) {
+        && avs_simple_snprintf(host, host_size, "%s", it->peer.get_ip_address())
+                   < 0
+        && avs_is_ok(err)) {
         err = avs_errno(AVS_ERANGE);
     }
     if (port_str_size
-            && avs_simple_snprintf(port_str, port_str_size, "%" PRIu16,
-                                   it->peer.get_port())
-                           < 0
-            && avs_is_ok(err)) {
+        && avs_simple_snprintf(port_str, port_str_size, "%" PRIu16,
+                               it->peer.get_port())
+                   < 0
+        && avs_is_ok(err)) {
         err = avs_errno(AVS_ERANGE);
     }
     recvd_msgs_.erase(it);

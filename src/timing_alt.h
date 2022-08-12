@@ -37,13 +37,12 @@ struct mbedtls_timing_hr_time {
 };
 
 typedef struct {
-    struct mbedtls_timing_hr_time   timer;
-    uint32_t                        int_ms;
-    uint32_t                        fin_ms;
+    struct mbedtls_timing_hr_time timer;
+    uint32_t int_ms;
+    uint32_t fin_ms;
 } mbedtls_timing_delay_context;
 
 unsigned long mbedtls_timing_get_timer(struct mbedtls_timing_hr_time *val,
                                        int reset);
-
 
 #endif // CONFIG_MBEDTLS_TIMING_ALT_H

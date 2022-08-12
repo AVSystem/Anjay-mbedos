@@ -17,6 +17,7 @@
 #include <avsystem/commons/avs_defs.h>
 #include <avsystem/commons/avs_memory.h>
 
+#include "avs_mbed_hacks.h"
 #include "avs_mbed_threading_structs.h"
 
 using namespace rtos;
@@ -78,7 +79,10 @@ int avs_condvar_wait(avs_condvar_t *condvar,
         condvar->first_waiter = &waiter;
     }
     mutex->mbed_mtx.unlock();
-#if MBED_MAJOR_VERSION > 5 \
+#if MBED_MAJOR_VERSION >= 6
+    bool timed_out =
+            !waiter.sem.try_acquire_for(std::chrono::milliseconds(wait_ms));
+#elif MBED_MAJOR_VERSION > 5 \
         || (MBED_MAJOR_VERSION == 5 && MBED_MINOR_VERSION >= 13)
     bool timed_out = !waiter.sem.try_acquire_for(wait_ms);
 #else  // MBED_MAJOR_VERSION > 5 || (MBED_MAJOR_VERSION == 5 &&
@@ -110,5 +114,5 @@ void avs_condvar_cleanup(avs_condvar_t **condvar) {
     }
 
     delete *condvar;
-    *condvar = NULL;
+    *condvar = nullptr;
 }

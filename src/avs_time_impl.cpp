@@ -19,6 +19,8 @@
 
 #include <avsystem/commons/avs_time.h>
 
+#include "avs_mbed_hacks.h"
+
 // OK, this is a tricky one.
 //
 // mbed OS gives us a ticker, which is a 64-bit number in microseconds. This
@@ -131,7 +133,7 @@ extern "C" uint64_t us_ticker_read64();
 
 CurrentTime current_time() {
     CurrentTime result;
-    result.rtc_value_s = time(NULL);
+    result.rtc_value_s = time(nullptr);
 #if MBED_MAJOR_VERSION > 5 \
         || (MBED_MAJOR_VERSION == 5 && MBED_MINOR_VERSION >= 5)
     // mbed OS >= 5.5
@@ -145,16 +147,16 @@ CurrentTime current_time() {
     // 32-bit to satisfy mbed OS API. Code below relies on a patch exposing
     // 64-bit ticker value via custom us_ticker_read64 function. Making it
     // compatible with other targets will require similar hacks.
-#    ifdef TARGET_RZA1XX
+#ifdef TARGET_RZA1XX
     // defined in mbed-os/targets/TARGET_RENESAS/TARGET_RZA1XX/us_ticker.c
     // NOTE: requires applying rza1xx-64bit-ticker.patch on mbed-os repository
     result.ticker_value_us = us_ticker_read64();
-#    else // TARGET_RZA1XX
-#        error "mbed OS <= 5.4 uses a 32-bit microsecond ticker, which is too short " \
+#else // TARGET_RZA1XX
+#error "mbed OS <= 5.4 uses a 32-bit microsecond ticker, which is too short " \
        "to make Anjay work correctly. Either update mbed OS to >= 5.5, or " \
        "provide a 64-bit ticker implementation for your platform in place " \
        "of this error message."
-#    endif // TARGET_RZA1XX
+#endif // TARGET_RZA1XX
 #endif
     return result;
 }
@@ -163,7 +165,7 @@ CurrentTime current_time_synchronized() {
     CurrentTime current = current_time();
     avs_time_duration_t drift = current.drift();
     if (!avs_time_duration_less(drift, MAX_DRIFT)
-            || !avs_time_duration_less(MIN_DRIFT, drift)) {
+        || !avs_time_duration_less(MIN_DRIFT, drift)) {
         // update TICKER_MINUS_RTC, this might block for up to a second
         CurrentTime base = current;
         do {

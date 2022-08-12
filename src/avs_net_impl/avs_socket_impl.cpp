@@ -119,7 +119,7 @@ avs_error_t shutdown_net(avs_net_socket_t *net_socket) {
 avs_error_t cleanup_net(avs_net_socket_t **net_socket) {
     get_impl(*net_socket)->~AvsSocket();
     free(*net_socket);
-    *net_socket = NULL;
+    *net_socket = nullptr;
     return AVS_OK;
 }
 
@@ -169,30 +169,19 @@ avs_error_t set_opt_net(avs_net_socket_t *net_socket,
     return get_impl(net_socket)->set_opt(option_key, option_value);
 }
 
-const avs_net_socket_v_table_t NET_VTABLE = { connect_net,
-                                              NULL,
-                                              send_net,
-                                              send_to_net,
-                                              receive_net,
-                                              receive_from_net,
-                                              bind_net,
-                                              accept_net,
-                                              close_net,
-                                              shutdown_net,
-                                              cleanup_net,
-                                              system_socket_net,
-                                              NULL,
-                                              remote_host_net,
-                                              remote_hostname_net,
-                                              remote_port_net,
-                                              local_host_net,
-                                              local_port_net,
-                                              get_opt_net,
-                                              set_opt_net };
+const avs_net_socket_v_table_t NET_VTABLE = {
+    connect_net,     nullptr,         send_net,
+    send_to_net,     receive_net,     receive_from_net,
+    bind_net,        accept_net,      close_net,
+    shutdown_net,    cleanup_net,     system_socket_net,
+    nullptr,         remote_host_net, remote_hostname_net,
+    remote_port_net, local_host_net,  local_port_net,
+    get_opt_net,     set_opt_net
+};
 
 avs_error_t accept_net(avs_net_socket_t *server_net_socket,
                        avs_net_socket_t *new_net_socket) {
-    AvsSocket *new_avs_socket = NULL;
+    AvsSocket *new_avs_socket = nullptr;
     if (new_net_socket
         && reinterpret_cast<avs_net_socket_t *>(new_net_socket)->operations
                    == &NET_VTABLE) {
@@ -296,7 +285,7 @@ static int poll_nonblocking(avs::List<avs_net_socket_t *> &out,
 
 } // namespace
 
-NetworkInterface *AvsSocketGlobal::INTERFACE = NULL;
+NetworkInterface *AvsSocketGlobal::INTERFACE = nullptr;
 uint8_t AvsSocketGlobal::MAX_DNS_RESULTS = 0;
 size_t AvsSocketGlobal::RECV_BUFFER_SIZE = 0;
 avs_net_af_t AvsSocketGlobal::PREFERRED_FAMILY = AVS_NET_AF_UNSPEC;
@@ -314,7 +303,7 @@ AvsSocketGlobal::AvsSocketGlobal(NetworkInterface *interface,
 }
 
 AvsSocketGlobal::~AvsSocketGlobal() {
-    INTERFACE = NULL;
+    INTERFACE = nullptr;
 }
 
 NetworkInterface &AvsSocketGlobal::get_interface() {
@@ -439,7 +428,7 @@ int port_from_string(uint16_t *out, const char *port) {
         *out = 0;
         return 0;
     }
-    char *endptr = NULL;
+    char *endptr = nullptr;
     long result = strtol(port, &endptr, 10);
     if (result < 0 || result > UINT16_MAX || !endptr || *endptr) {
         LOG(ERROR, "Invalid port: %s", port);
@@ -456,7 +445,8 @@ int next_socket_address(avs_net_addrinfo_t *addrinfo, SocketAddress *out) {
         return result;
     }
     MBED_ASSERT(endpoint.size == sizeof(SocketAddress));
-    memcpy(out, &endpoint.data, sizeof(SocketAddress));
+    void *out_ptr = out;
+    memcpy(out_ptr, &endpoint.data, sizeof(SocketAddress));
     return 0;
 }
 
@@ -560,13 +550,13 @@ avs_net_af_t AvsSocket::socket_family() const {
     }
 }
 
-auto_ptr<avs_net_addrinfo_t>
+AvsUniquePtr<avs_net_addrinfo_t>
 AvsSocket::resolve_addrinfo(const char *host,
                             const char *port,
                             bool use_preferred_endpoint,
                             preferred_family_mode_t preferred_family_mode,
                             int resolve_flags) const {
-    auto_ptr<avs_net_addrinfo_t> result;
+    AvsUniquePtr<avs_net_addrinfo_t> result;
 
     avs_net_af_t family = AVS_NET_AF_UNSPEC;
     if (get_family_for_name_resolution(&family, preferred_family_mode)) {
@@ -589,11 +579,12 @@ AvsSocket::resolve_addrinfo(const char *host,
     }
 
     // avs_net_socket_type_t is ignored in avs_net_addrinfo_resolve_ex() anyway
-    // also, it's safe to use auto_ptr because avs_net_addrinfo_delete() just
-    // calls operator delete
+    // also, it's safe to use AvsUniquePtr because avs_net_addrinfo_delete()
+    // just calls operator delete
     result.reset(avs_net_addrinfo_resolve_ex(
             avs_net_socket_type_t(), family, host, port, resolve_flags,
-            use_preferred_endpoint ? configuration_.preferred_endpoint : NULL));
+            use_preferred_endpoint ? configuration_.preferred_endpoint
+                                   : nullptr));
     return result;
 }
 
@@ -643,14 +634,16 @@ avs_error_t AvsSocket::try_bind(avs_net_addrinfo_t *info) {
 }
 
 avs_error_t AvsSocket::bind(const char *localaddr, const char *port_str) {
-    auto_ptr<avs_net_addrinfo_t> info =
+    AvsUniquePtr<avs_net_addrinfo_t> info(
             resolve_addrinfo(localaddr, port_str, false, PREFERRED_FAMILY_ONLY,
-                             AVS_NET_ADDRINFO_RESOLVE_F_PASSIVE);
+                             AVS_NET_ADDRINFO_RESOLVE_F_PASSIVE)
+                    .move());
     avs_error_t err = try_bind(info.get());
     if (avs_is_err(err)) {
         info = resolve_addrinfo(localaddr, port_str, false,
                                 PREFERRED_FAMILY_BLOCKED,
-                                AVS_NET_ADDRINFO_RESOLVE_F_PASSIVE);
+                                AVS_NET_ADDRINFO_RESOLVE_F_PASSIVE)
+                       .move();
         err = try_bind(info.get());
     }
     return err;
@@ -666,8 +659,8 @@ avs_error_t AvsSocket::connect(const char *host, const char *port) {
     LOG(TRACE, "connecting to [%s]:%s", host, port);
 
     avs_error_t err = avs_errno(AVS_EADDRNOTAVAIL);
-    auto_ptr<avs_net_addrinfo_t> info =
-            resolve_addrinfo(host, port, true, PREFERRED_FAMILY_ONLY);
+    AvsUniquePtr<avs_net_addrinfo_t> info(
+            resolve_addrinfo(host, port, true, PREFERRED_FAMILY_ONLY).move());
     SocketAddress address;
     if (info.get()) {
         while (!next_socket_address(info.get(), &address)) {
@@ -676,7 +669,7 @@ avs_error_t AvsSocket::connect(const char *host, const char *port) {
             }
         }
     }
-    info = resolve_addrinfo(host, port, true, PREFERRED_FAMILY_BLOCKED);
+    info = resolve_addrinfo(host, port, true, PREFERRED_FAMILY_BLOCKED).move();
     if (info.get()) {
         while (!next_socket_address(info.get(), &address)) {
             if (avs_is_ok((err = try_connect(address)))) {
@@ -694,8 +687,14 @@ success:
     }
     update_remote_endpoint(host, address);
     if (local_address_.get_ip_version() == NSAPI_UNSPEC) {
+#if PREREQ_MBED_OS(5, 15, 0)
+        SocketAddress address;
+        AvsSocketGlobal::get_interface().get_ip_address(&address);
+        local_address_.set_ip_address(address.get_ip_address());
+#else  // PREREQ_MBED_OS(5, 15, 0)
         local_address_.set_ip_address(
                 AvsSocketGlobal::get_interface().get_ip_address());
+#endif // PREREQ_MBED_OS(5, 15, 0)
     }
     if (local_address_.get_port() == 0) {
         int32_t local_port = get_local_port(mbed_socket());
@@ -725,6 +724,9 @@ avs_error_t AvsSocket::get_opt(avs_net_socket_opt_key_t option_key,
         } else {
             return avs_errno(AVS_EINVAL);
         }
+    case AVS_NET_SOCKET_HAS_BUFFERED_DATA:
+        out_option_value->flag = false;
+        return AVS_OK;
     default:
         LOG(ERROR, "get_opt_net: unknown or unsupported option key");
         return avs_errno(AVS_EINVAL);

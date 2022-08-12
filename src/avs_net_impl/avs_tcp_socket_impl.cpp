@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-#include <TCPServer.h>
-#include <TCPSocket.h>
-
 #include <avsystem/commons/avs_commons_config.h>
 #include <avsystem/commons/avs_errno.h>
 
 #include "avs_mbed_hacks.h"
 #include "avs_socket_impl.h"
+
+#if !PREREQ_MBED_OS(5, 10, 0)
+#include <TCPServer.h>
+#endif // !PREREQ_MBED_OS(5, 10, 0)
+#include <TCPSocket.h>
 
 using namespace avs_mbed_hacks;
 using namespace avs_mbed_impl;
@@ -41,7 +43,7 @@ avs_error_t AvsTcpSocket::configure_socket() {
 
 /**
  * This function is intended to be a drop-in replacement for TCPSocket::recv(),
- * but make sure that recv(NULL, 0) always returns success if there is data
+ * but make sure that recv(nullptr, 0) always returns success if there is data
  * available for reading.
  *
  * We call recv() like that in our implementation of poll() - this is necessary,
@@ -53,7 +55,8 @@ avs_error_t AvsTcpSocket::configure_socket() {
  *
  * That's why we make sure that TCPSocket::recv() is always called with buffer
  * bigger than 0. We can then buffer that initial part of data, and return
- * success from recv(NULL, 0) properly, until the buffer is actually consumed.
+ * success from recv(nullptr, 0) properly, until the buffer is actually
+ * consumed.
  */
 nsapi_size_or_error_t AvsTcpSocket::recv_with_buffer_hack(void *data,
                                                           nsapi_size_t size) {
@@ -95,7 +98,7 @@ avs_error_t AvsTcpSocket::try_connect(const SocketAddress &address) {
         return avs_errno(AVS_EISCONN);
     }
     MBED_ASSERT(!socket_.get());
-    auto_ptr<TCPSocket> new_socket(new (nothrow) TCPSocket());
+    AvsUniquePtr<TCPSocket> new_socket(new (nothrow) TCPSocket());
     if (!new_socket.get()) {
         LOG(ERROR, "cannot create socket");
         return avs_errno(AVS_ENOMEM);
@@ -118,12 +121,12 @@ avs_error_t AvsTcpSocket::try_connect(const SocketAddress &address) {
     }
 
     // check if connection is really usable
-    nserr = new_socket->send(NULL, 0);
+    nserr = new_socket->send(nullptr, 0);
     if (nserr) {
         return avs_errno(nsapi_error_to_errno(nserr));
     }
 
-    socket_ = new_socket;
+    socket_ = new_socket.move();
     return AVS_OK;
 }
 
@@ -141,7 +144,7 @@ bool AvsTcpSocket::ready_to_receive() const {
         MBED_ASSERT(socket_.get());
         socket_->set_blocking(false);
         nsapi_size_or_error_t result =
-                const_cast<AvsTcpSocket *>(this)->recv_with_buffer_hack(NULL,
+                const_cast<AvsTcpSocket *>(this)->recv_with_buffer_hack(nullptr,
                                                                         0);
         LOG(DEBUG, "result == %d", (int) result);
         return result == NSAPI_ERROR_OK;
@@ -232,9 +235,9 @@ avs_error_t AvsTcpSocket::try_bind(const SocketAddress &localaddr) {
     }
 
 #if PREREQ_MBED_OS(5, 10, 0)
-    auto_ptr<TCPSocket> socket(new (nothrow) TCPSocket());
+    AvsUniquePtr<TCPSocket> socket(new (nothrow) TCPSocket());
 #else // mbed OS < 5.10
-    auto_ptr<TCPServer> socket(new (nothrow) TCPServer());
+    AvsUniquePtr<TCPServer> socket(new (nothrow) TCPServer());
 #endif
     if (!socket.get()) {
         LOG(ERROR, "cannot create TCPServer");
@@ -265,7 +268,7 @@ avs_error_t AvsTcpSocket::try_bind(const SocketAddress &localaddr) {
         LOG(ERROR, "listen error: %d", (int) nserr);
         return avs_errno(nsapi_error_to_errno(nserr));
     }
-    socket_ = socket;
+    socket_ = socket.move();
     state_ = AVS_NET_SOCKET_STATE_BOUND;
     local_address_ = localaddr;
     if (local_address_.get_port() == 0) {
@@ -301,10 +304,10 @@ avs_error_t AvsTcpSocket::accept(AvsSocket *new_socket_) {
     socket_->set_timeout(NET_ACCEPT_TIMEOUT_MS);
     nsapi_error_t err = 0;
 #if PREREQ_MBED_OS(5, 10, 0)
-    auto_ptr<TCPSocket> new_mbed_socket(
+    AvsUniquePtr<TCPSocket> new_mbed_socket(
             static_cast<TCPSocket *>(socket_.get())->accept(&err));
 #else // mbed OS < 5.10
-    auto_ptr<TCPSocket> new_mbed_socket(new (nothrow) TCPSocket());
+    AvsUniquePtr<TCPSocket> new_mbed_socket(new (nothrow) TCPSocket());
     if (new_mbed_socket.get()) {
         err = new_mbed_socket->open(&AvsSocketGlobal::get_interface());
         if (!err) {
@@ -320,7 +323,7 @@ avs_error_t AvsTcpSocket::accept(AvsSocket *new_socket_) {
         return avs_errno(nsapi_error_to_errno(err));
     }
     new_mbed_socket->sigio(callback(trigger_poll_flag));
-    new_socket->socket_ = new_mbed_socket;
+    new_socket->socket_ = new_mbed_socket.move();
     new_socket->state_ = AVS_NET_SOCKET_STATE_ACCEPTED;
     new_socket->update_remote_endpoint(addr.get_ip_address(), addr);
     new_socket->local_address_ = local_address_;

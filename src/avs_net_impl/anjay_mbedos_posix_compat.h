@@ -61,7 +61,7 @@ int _anjay_mbedos_poll(struct avs_mbedos_pollfd *fds,
 // temporary variable holding the socket pointer itself, which means that
 // *avs_net_socket_get_system(socket) == socket. That way we can use
 // avs_net_socket_t * as the "file descriptor" type.
-#define avs_net_socket_get_system(Socket) (&(avs_net_socket_t *) { (Socket) })
+#define avs_net_socket_get_system(Socket) (&(avs_net_socket_t *){ (Socket) })
 
 typedef avs_net_socket_t *sockfd_t;
 #define INVALID_SOCKET NULL

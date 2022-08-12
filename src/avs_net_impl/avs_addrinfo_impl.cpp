@@ -28,13 +28,6 @@ using namespace avs_mbed_hacks;
 using namespace avs_mbed_impl;
 using namespace std;
 
-struct avs_net_addrinfo_struct {
-    bool v4mapped;
-    uint8_t count;
-    uint8_t current_index;
-    SocketAddress results[1]; // actually a VLA
-};
-
 namespace {
 
 static SocketAddress create_v4mapped(const SocketAddress &addr) {
@@ -63,7 +56,7 @@ class AvsRand {
     unsigned seed_;
 
 public:
-    AvsRand() : seed_(time(NULL)) {}
+    AvsRand() : seed_(time(nullptr)) {}
 
     int operator()(size_t range) {
         MBED_ASSERT(range <= AVS_RAND_MAX);
@@ -147,9 +140,10 @@ perform_dns_query(avs_net_addrinfo_t *ctx,
 
     randomize_addresses(ctx);
     if (preferred_endpoint
-            && preferred_endpoint->size == sizeof(SocketAddress)) {
+        && preferred_endpoint->size == sizeof(SocketAddress)) {
         SocketAddress preferred_addr;
-        memcpy(&preferred_addr, &preferred_endpoint->data,
+        void *preferred_addr_ptr = &preferred_addr;
+        memcpy(preferred_addr_ptr, &preferred_endpoint->data,
                sizeof(SocketAddress));
         if (preferred_addr.get_port() == port) {
             prioritize_preferred(ctx, preferred_addr);
@@ -162,10 +156,10 @@ perform_dns_query(avs_net_addrinfo_t *ctx,
 
 void avs_net_addrinfo_delete(avs_net_addrinfo_t **ctx) {
     if (*ctx) {
-        // we need to use operator delete because we want to use auto_ptr
-        // in AvsSocket::resolve_addrinfo() which doesn't allow deleter override
+        // we need to use operator delete because we want to remain compatible
+        // with C++98's auto_ptr which doesn't allow deleter override
         delete *ctx;
-        *ctx = NULL;
+        *ctx = nullptr;
     }
 }
 
@@ -179,7 +173,7 @@ avs_net_addrinfo_t *avs_net_addrinfo_resolve_ex(
     uint16_t port;
     if (port_from_string(&port, port_str)) {
         LOG(ERROR, "Invalid port number");
-        return NULL;
+        return nullptr;
     }
     if (!host || !*host) {
         switch (family) {
@@ -200,12 +194,12 @@ avs_net_addrinfo_t *avs_net_addrinfo_resolve_ex(
         literal_addr.set_port(port);
         if (!address_matches_family(literal_addr, family, flags)) {
             LOG(ERROR, "IP address of invalid family passed");
-            return NULL;
+            return nullptr;
         }
     } else {
         if (flags & AVS_NET_ADDRINFO_RESOLVE_F_PASSIVE) {
             LOG(ERROR, "Invalid IP address when resolving in passive mode");
-            return NULL;
+            return nullptr;
         }
         // not an IP address, proceed with DNS query
         number_of_entries_to_allocate = AvsSocketGlobal::max_dns_result();
@@ -214,14 +208,15 @@ avs_net_addrinfo_t *avs_net_addrinfo_resolve_ex(
     size_t alloc_bytes =
             offsetof(avs_net_addrinfo_t, results)
             + number_of_entries_to_allocate * sizeof(SocketAddress);
-    auto_ptr<avs_net_addrinfo_t> ctx(
+    AvsUniquePtr<avs_net_addrinfo_t> ctx(
             reinterpret_cast<avs_net_addrinfo_t *>(operator new(alloc_bytes,
                                                                 nothrow)));
-    if (!ctx.get()) {
+    void *ctx_ptr = ctx.get();
+    if (!ctx_ptr) {
         LOG(ERROR, "Out of memory");
-        return NULL;
+        return nullptr;
     }
-    memset(ctx.get(), 0, alloc_bytes);
+    memset(ctx_ptr, 0, alloc_bytes);
     if (flags & AVS_NET_ADDRINFO_RESOLVE_F_V4MAPPED) {
         ctx->v4mapped = true;
         if (family == AVS_NET_AF_INET6) {
@@ -234,7 +229,7 @@ avs_net_addrinfo_t *avs_net_addrinfo_resolve_ex(
         ctx->results[0] = literal_addr;
     } else if (perform_dns_query(ctx.get(), number_of_entries_to_allocate,
                                  family, host, port, preferred_endpoint)) {
-        return NULL;
+        return nullptr;
     }
     return ctx.release();
 }
@@ -248,8 +243,7 @@ int avs_net_addrinfo_next(avs_net_addrinfo_t *ctx,
                 || ctx->results[ctx->current_index].get_ip_version()
                            == NSAPI_IPv6);
     if (ctx->v4mapped
-            && ctx->results[ctx->current_index].get_ip_version()
-                           == NSAPI_IPv4) {
+        && ctx->results[ctx->current_index].get_ip_version() == NSAPI_IPv4) {
         store_resolved_endpoint(out, create_v4mapped(
                                              ctx->results[ctx->current_index]));
     } else {

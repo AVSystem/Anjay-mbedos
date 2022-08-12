@@ -18,7 +18,7 @@
 #include <mbed_mem_trace.h>
 
 #ifdef TARGET_GR_LYCHEE
-#    include <ESP32Interface.h>
+#include <ESP32Interface.h>
 #endif // TARGET_GR_LYCHEE
 #include <NetworkInterface.h>
 
@@ -54,15 +54,15 @@
 #define WIFI_PASSWORD "password123"
 
 #if WITH_DTLS
-#    define LWM2M_URI LWM2M_DTLS_ADDR
-#    define LWM2M_BS_URI LWM2M_BS_DTLS_ADDR
+#define LWM2M_URI LWM2M_DTLS_ADDR
+#define LWM2M_BS_URI LWM2M_BS_DTLS_ADDR
 #else
-#    define LWM2M_URI LWM2M_NOSEC_ADDR
-#    define LWM2M_BS_URI LWM2M_BS_NOSEC_ADDR
+#define LWM2M_URI LWM2M_NOSEC_ADDR
+#define LWM2M_BS_URI LWM2M_BS_NOSEC_ADDR
 #endif
 
 #if !WITH_LWM2M_SERVER && !WITH_BOOTSTRAP_SERVER
-#    error "No LwM2M Server and no LwM2M Bootstrap Server enabled"
+#error "No LwM2M Server and no LwM2M Bootstrap Server enabled"
 #endif
 
 namespace {
@@ -90,7 +90,7 @@ void serve_forever(anjay_t *anjay) {
         anjay_sched_run(anjay);
 
         if (anjay_all_connections_failed(anjay)) {
-            anjay_schedule_reconnect(anjay);
+            anjay_transport_schedule_reconnect(anjay, ANJAY_TRANSPORT_SET_ALL);
         }
     }
 }
@@ -160,8 +160,7 @@ int setup_server_object(anjay_t *anjay) {
     int result = anjay_server_object_install(anjay);
     if (result
 #if !WITH_BOOTSTRAP_SERVER
-            || anjay_server_object_add_instance(anjay, &serv_instance,
-                                                &server_iid)
+        || anjay_server_object_add_instance(anjay, &serv_instance, &server_iid)
 #endif
     ) {
         avs_log(lwm2m, ERROR, "cannot initialize server object");
@@ -204,11 +203,6 @@ void lwm2m_serve(void) {
         goto finish;
     }
 
-    if (anjay_attr_storage_install(anjay)) {
-        avs_log(lwm2m, ERROR, "cannot initialize attribute storage module");
-        goto finish;
-    }
-
     if (setup_security_object(anjay) || setup_server_object(anjay)) {
         avs_log(lwm2m, ERROR, "cannot register data model objects");
         goto finish;
@@ -221,7 +215,7 @@ finish:
 
     if (anjay) {
         anjay_delete(anjay);
-        anjay = NULL;
+        anjay = nullptr;
     }
 }
 
@@ -237,7 +231,7 @@ static float cpu_usage_percent(uint64_t idle_diff, uint64_t sample_time) {
 
 void print_stats(void) {
 #if !MBED_MEM_TRACING_ENABLED || !MBED_STACK_STATS_ENABLED
-#    warning "Thread stack statistics require MBED_STACK_STATS_ENABLED and " \
+#warning "Thread stack statistics require MBED_STACK_STATS_ENABLED and " \
              "MBED_MEM_TRACING_ENABLED to be defined in mbed_app.json"
     printf("Thread stacks stats disabled\r\n");
 #else
@@ -260,7 +254,7 @@ void print_stats(void) {
 #endif
 
 #if !MBED_MEM_TRACING_ENABLED || !MBED_HEAP_STATS_ENABLED
-#    warning "Thread stack statistics require MBED_HEAP_STATS_ENABLED and " \
+#warning "Thread stack statistics require MBED_HEAP_STATS_ENABLED and " \
              "MBED_MEM_TRACING_ENABLED to be defined in mbed_app.json"
     printf("Heap usage stats disabled\r\n");
 #else
@@ -271,7 +265,7 @@ void print_stats(void) {
 #endif
 
 #if !MBED_CPU_STATS_ENABLED
-#    warning "CPU usage statistics require MBED_CPU_STATS_ENABLED to be " \
+#warning "CPU usage statistics require MBED_CPU_STATS_ENABLED to be " \
              "defined in mbed_app.json"
     printf("CPU usage stats disabled\r\n");
 #else
@@ -318,7 +312,7 @@ int main() {
 
     // See https://github.com/ARMmbed/mbed-os/issues/7069. In general this is
     // required to initialize hardware RNG used by default.
-    mbedtls_platform_setup(NULL);
+    mbedtls_platform_setup(nullptr);
 
 #ifdef TARGET_GR_LYCHEE
     printf("Hello, world. Initializing network (WPA2, SSID: %s, PSK: "
@@ -331,8 +325,7 @@ int main() {
 #endif
 
     for (int retry = 0;
-         network.get_connection_status() != NSAPI_STATUS_GLOBAL_UP;
-         ++retry) {
+         network.get_connection_status() != NSAPI_STATUS_GLOBAL_UP; ++retry) {
         printf("connect, retry = %d\r\n", retry);
         nsapi_error_t err = network.connect();
         printf("connect result = %d\r\n", err);

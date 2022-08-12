@@ -6,3 +6,7 @@ compatible boards.
 
 The actual LwM2M Client built on top of this library is
 [Anjay-mbedos-client](https://github.com/AVSystem/Anjay-mbedos-client).
+
+This library is intended to be compatible with Mbed OS 5.5 and newer, as well
+as all versions of Mbed OS 6.x. The latest version that has been tested is
+Mbed OS 6.16.

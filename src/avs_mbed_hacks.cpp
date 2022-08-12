@@ -29,9 +29,9 @@
 #include "avs_socket_impl.h"
 
 #if PREREQ_MBED_OS(5, 9, 0)
-#    include <LWIPStack.h>
+#include <LWIPStack.h>
 #else // mbed OS <= 5.8
-#    include <lwip_stack.h>
+#include <lwip_stack.h>
 #endif
 
 using namespace avs_mbed_impl;
@@ -81,7 +81,7 @@ nsapi_size_or_error_t dns_query_multiple(const char *host,
     // additional argument.
     return nsapi_dns_query_multiple(nsapi_create_stack(
                                             &AvsSocketGlobal::get_interface()),
-                                    host, addr, addr_count, NULL, version);
+                                    host, addr, addr_count, nullptr, version);
 #elif PREREQ_MBED_OS(5, 7, 5)
     return nsapi_dns_query_multiple(nsapi_create_stack(
                                             &AvsSocketGlobal::get_interface()),
@@ -96,9 +96,9 @@ nsapi_size_or_error_t dns_query_multiple(const char *host,
     // public API, so we check if it's lwIP and work only in that case for now
     nsapi_size_or_error_t result;
     if (nsapi_create_stack(&AvsSocketGlobal::get_interface())
-            == nsapi_create_stack(&lwip_stack)) {
+        == nsapi_create_stack(&lwip_stack)) {
         // lwIP stack, perform the multiple query
-        auto_ptr<nsapi_addr_t> nsapi_addrs(
+        AvsUniquePtr<nsapi_addr_t> nsapi_addrs(
                 reinterpret_cast<nsapi_addr_t *>(operator new(
                         sizeof(nsapi_addr_t) * addr_count)));
         if (!nsapi_addrs.get()) {

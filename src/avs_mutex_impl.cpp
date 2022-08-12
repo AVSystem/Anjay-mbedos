@@ -27,7 +27,12 @@ int avs_mutex_create(avs_mutex_t **out_mutex) {
 }
 
 int avs_mutex_lock(avs_mutex_t *mutex) {
+#if PREREQ_MBED_OS(6, 0, 0)
+    mutex->mbed_mtx.lock();
+    return 0;
+#else  // PREREQ_MBED_OS(6, 0, 0)
     return mutex->mbed_mtx.lock() == osOK ? 0 : -1;
+#endif // PREREQ_MBED_OS(6, 0, 0)
 }
 
 int avs_mutex_try_lock(avs_mutex_t *mutex) {
@@ -35,7 +40,12 @@ int avs_mutex_try_lock(avs_mutex_t *mutex) {
 }
 
 int avs_mutex_unlock(avs_mutex_t *mutex) {
+#if PREREQ_MBED_OS(6, 0, 0)
+    mutex->mbed_mtx.unlock();
+    return 0;
+#else  // PREREQ_MBED_OS(6, 0, 0)
     return mutex->mbed_mtx.unlock() == osOK ? 0 : -1;
+#endif // PREREQ_MBED_OS(6, 0, 0)
 }
 
 void avs_mutex_cleanup(avs_mutex_t **mutex) {
@@ -44,5 +54,5 @@ void avs_mutex_cleanup(avs_mutex_t **mutex) {
     }
 
     delete *mutex;
-    *mutex = NULL;
+    *mutex = nullptr;
 }

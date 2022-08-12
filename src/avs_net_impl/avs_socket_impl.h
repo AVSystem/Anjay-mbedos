@@ -17,8 +17,6 @@
 #ifndef AVS_SOCKET_IMPL_H
 #define AVS_SOCKET_IMPL_H
 
-#include <memory>
-
 #include <inttypes.h>
 
 #include <Socket.h>
@@ -39,6 +37,13 @@
 #define NET_LISTEN_BACKLOG 1024
 
 #define LOG(...) avs_log(mbed_sock, __VA_ARGS__)
+
+struct avs_net_addrinfo_struct {
+    bool v4mapped;
+    uint8_t count;
+    uint8_t current_index;
+    SocketAddress results[1]; // actually a VLA
+};
 
 namespace avs_mbed_impl {
 
@@ -86,7 +91,7 @@ protected:
     int get_family_for_name_resolution(
             avs_net_af_t *out,
             preferred_family_mode_t preferred_family_mode) const;
-    ::std::auto_ptr<avs_net_addrinfo_t>
+    ::AvsUniquePtr<avs_net_addrinfo_t>
     resolve_addrinfo(const char *host,
                      const char *port,
                      bool use_preferred_endpoint,
@@ -110,7 +115,8 @@ public:
     avs_error_t initialize(const avs_net_socket_configuration_t *configuration);
 
     avs_error_t receive(size_t *out_size, void *buffer, size_t buffer_length) {
-        return receive_from(out_size, buffer, buffer_length, NULL, 0, NULL, 0);
+        return receive_from(out_size, buffer, buffer_length, nullptr, 0,
+                            nullptr, 0);
     }
 
     avs_error_t bind(const char *localaddr, const char *port_str);
@@ -208,7 +214,7 @@ public:
 };
 
 class AvsTcpSocket : public AvsSocket {
-    std::auto_ptr<InternetSocket> socket_; // TCPSocket or TCPServer
+    AvsUniquePtr<InternetSocket> socket_; // TCPSocket or TCPServer
     uint8_t buffered_byte_;
     bool has_buffered_byte_;
 
