@@ -1,6 +1,11 @@
 # Changelog
 
-## 3.1.1 (Fri 12th, 2022)
+## 3.1.2 (Aug 24th, 2022)
+
+### Improvements
+- Updated Anjay to version 3.1.2
+
+## 3.1.1 (Aug 12th, 2022)
 
 ### Improvements
 - Updated Anjay to version 3.1.1
